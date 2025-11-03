@@ -4,8 +4,7 @@ import mediapipe as mp
 import os
 from rembg import remove as rembg_remove
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
-from tkinter import colorchooser  # 修正顏色選擇器
+from tkinter import filedialog, messagebox, scrolledtext, colorchooser
 
 # -----------------------------
 # rembg 模組檢查
@@ -19,7 +18,7 @@ except ImportError as e:
     print("⚠️ 導入 rembg 失敗:", e)
 
 # -----------------------------
-# 升級版去背函數
+# 去背函數
 # -----------------------------
 def remove_background(image_path, bg_color=(255, 255, 255), bg_image_path=None,
                       auto_refine=True, feather_radius=15, transparent=False):
@@ -100,6 +99,11 @@ class BGReplaceApp:
         self.bg_color = (255, 255, 255)
         tk.Button(root, text="選擇顏色", command=self.choose_color).grid(row=1, column=1, sticky="w")
 
+        # 顏色預覽方塊
+        self.color_preview = tk.Label(root, bg=self.rgb_to_hex(self.bg_color),
+                                      width=3, height=1, relief="groove", borderwidth=2)
+        self.color_preview.grid(row=1, column=2, sticky="w")
+
         # 背景圖片
         tk.Label(root, text="背景圖片 (可選):").grid(row=2, column=0, sticky="w")
         self.bg_image_path = tk.StringVar()
@@ -120,6 +124,13 @@ class BGReplaceApp:
         self.log_text.grid(row=5, column=0, columnspan=3, pady=10)
 
     # -----------------------------
+    # 輔助函數
+    # -----------------------------
+    def rgb_to_hex(self, rgb):
+        """將 RGB 轉為 #RRGGBB 格式"""
+        return "#%02x%02x%02x" % rgb
+
+    # -----------------------------
     # 按鈕功能
     # -----------------------------
     def select_input_dir(self):
@@ -129,9 +140,10 @@ class BGReplaceApp:
             self.input_dir_entry.insert(0, folder)
 
     def choose_color(self):
-        color = colorchooser.askcolor()[0]  # 修正顏色選擇器
+        color = colorchooser.askcolor()[0]
         if color:
             self.bg_color = tuple(int(c) for c in color)
+            self.color_preview.config(bg=self.rgb_to_hex(self.bg_color))
 
     def select_bg_image(self):
         file = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg *.png *.jpeg")])
@@ -171,7 +183,7 @@ class BGReplaceApp:
                 base_name = os.path.splitext(file)[0]
                 ext = ".png" if self.transparent_var.get() else ".jpg"
 
-                # 序號另存新檔，避免覆蓋
+                # 序號另存新檔
                 counter = 1
                 while True:
                     output_path = os.path.join(output_dir, f"{base_name}_{counter}{ext}")
