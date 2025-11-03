@@ -80,6 +80,7 @@ def remove_background(image_path, bg_color=(255, 255, 255), bg_image_path=None,
 
         return output
 
+
 # -----------------------------
 # GUI 主程式
 # -----------------------------
@@ -88,46 +89,52 @@ class BGReplaceApp:
         self.root = root
         self.root.title("智慧證件照背景替換")
 
+        self.selected_files = []  # 儲存使用者選擇的特定圖片
+
         # 照片資料夾
         tk.Label(root, text="照片資料夾:").grid(row=0, column=0, sticky="w")
         self.input_dir_entry = tk.Entry(root, width=50)
         self.input_dir_entry.grid(row=0, column=1)
-        tk.Button(root, text="瀏覽", command=self.select_input_dir).grid(row=0, column=2)
+        tk.Button(root, text="選擇資料夾", command=self.select_input_dir).grid(row=0, column=2)
+
+        # 選擇個別圖片
+        tk.Button(root, text="選擇個別照片", command=self.select_files).grid(row=1, column=1, sticky="w")
+        self.file_count_label = tk.Label(root, text="(未選擇照片)")
+        self.file_count_label.grid(row=1, column=2, sticky="w")
 
         # 背景顏色
-        tk.Label(root, text="背景顏色:").grid(row=1, column=0, sticky="w")
+        tk.Label(root, text="背景顏色:").grid(row=2, column=0, sticky="w")
         self.bg_color = (255, 255, 255)
-        tk.Button(root, text="選擇顏色", command=self.choose_color).grid(row=1, column=1, sticky="w")
+        tk.Button(root, text="選擇顏色", command=self.choose_color).grid(row=2, column=1, sticky="w")
 
         # 顏色預覽方塊
         self.color_preview = tk.Label(root, bg=self.rgb_to_hex(self.bg_color),
                                       width=3, height=1, relief="groove", borderwidth=2)
-        self.color_preview.grid(row=1, column=2, sticky="w")
+        self.color_preview.grid(row=2, column=2, sticky="w")
 
         # 背景圖片
-        tk.Label(root, text="背景圖片 (可選):").grid(row=2, column=0, sticky="w")
+        tk.Label(root, text="背景圖片 (可選):").grid(row=3, column=0, sticky="w")
         self.bg_image_path = tk.StringVar()
-        tk.Entry(root, textvariable=self.bg_image_path, width=50).grid(row=2, column=1)
-        tk.Button(root, text="瀏覽", command=self.select_bg_image).grid(row=2, column=2)
+        tk.Entry(root, textvariable=self.bg_image_path, width=50).grid(row=3, column=1)
+        tk.Button(root, text="瀏覽", command=self.select_bg_image).grid(row=3, column=2)
 
         # 選項
         self.auto_refine_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(root, text="自動精修 (rembg)", variable=self.auto_refine_var).grid(row=3, column=0, sticky="w")
+        tk.Checkbutton(root, text="自動精修 (rembg)", variable=self.auto_refine_var).grid(row=4, column=0, sticky="w")
         self.transparent_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(root, text="輸出透明背景", variable=self.transparent_var).grid(row=3, column=1, sticky="w")
+        tk.Checkbutton(root, text="輸出透明背景", variable=self.transparent_var).grid(row=4, column=1, sticky="w")
 
         # 開始按鈕
-        tk.Button(root, text="開始處理", command=self.start_processing).grid(row=4, column=1)
+        tk.Button(root, text="開始處理", command=self.start_processing).grid(row=5, column=1)
 
         # 日誌面板
         self.log_text = scrolledtext.ScrolledText(root, width=70, height=15)
-        self.log_text.grid(row=5, column=0, columnspan=3, pady=10)
+        self.log_text.grid(row=6, column=0, columnspan=3, pady=10)
 
     # -----------------------------
     # 輔助函數
     # -----------------------------
     def rgb_to_hex(self, rgb):
-        """將 RGB 轉為 #RRGGBB 格式"""
         return "#%02x%02x%02x" % rgb
 
     # -----------------------------
@@ -138,6 +145,17 @@ class BGReplaceApp:
         if folder:
             self.input_dir_entry.delete(0, tk.END)
             self.input_dir_entry.insert(0, folder)
+            self.selected_files = []  # 清空個別選擇
+            self.file_count_label.config(text="(未選擇照片)")
+
+    def select_files(self):
+        files = filedialog.askopenfilenames(
+            title="選擇要處理的圖片",
+            filetypes=[("Image Files", "*.jpg *.jpeg *.png")]
+        )
+        if files:
+            self.selected_files = list(files)
+            self.file_count_label.config(text=f"已選 {len(files)} 張")
 
     def choose_color(self):
         color = colorchooser.askcolor()[0]
@@ -155,32 +173,47 @@ class BGReplaceApp:
         self.log_text.see(tk.END)
         self.root.update()
 
+    # -----------------------------
+    # 處理流程
+    # -----------------------------
     def start_processing(self):
         input_dir = self.input_dir_entry.get()
-        if not os.path.isdir(input_dir):
-            messagebox.showerror("錯誤", "請選擇有效的照片資料夾")
+        output_dir = None
+        files = []
+
+        # 如果有個別選擇，就用個別的清單
+        if self.selected_files:
+            files = self.selected_files
+            # 統一輸出到第一張圖片的資料夾下的 results
+            first_dir = os.path.dirname(files[0])
+            output_dir = os.path.join(first_dir, "results")
+        else:
+            # 沒選就用整個資料夾
+            if not os.path.isdir(input_dir):
+                messagebox.showerror("錯誤", "請選擇有效的照片資料夾或個別照片")
+                return
+            output_dir = os.path.join(input_dir, "results")
+            files = [os.path.join(input_dir, f) for f in os.listdir(input_dir)
+                     if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+
+        if not files:
+            messagebox.showwarning("提醒", "未選擇任何圖片")
             return
 
-        output_dir = os.path.join(input_dir, "results")
         os.makedirs(output_dir, exist_ok=True)
 
-        files = [f for f in os.listdir(input_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
-        if not files:
-            messagebox.showwarning("提醒", "資料夾中沒有圖片")
-            return
-
         for file in files:
-            input_path = os.path.join(input_dir, file)
-            self.log(f"🖼️ 處理中：{file}")
+            filename = os.path.basename(file)
+            self.log(f"🖼️ 處理中：{filename}")
             result = remove_background(
-                input_path,
+                file,
                 bg_color=self.bg_color,
                 bg_image_path=self.bg_image_path.get() if self.bg_image_path.get() else None,
                 auto_refine=self.auto_refine_var.get(),
                 transparent=self.transparent_var.get()
             )
             if result is not None:
-                base_name = os.path.splitext(file)[0]
+                base_name = os.path.splitext(filename)[0]
                 ext = ".png" if self.transparent_var.get() else ".jpg"
 
                 # 序號另存新檔
@@ -195,6 +228,7 @@ class BGReplaceApp:
                 self.log(f"✅ 已儲存：{output_path}")
 
         messagebox.showinfo("完成", f"🎉 全部完成！結果在 '{output_dir}' 資料夾中。")
+
 
 # -----------------------------
 # 啟動 GUI
