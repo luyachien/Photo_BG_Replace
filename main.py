@@ -160,8 +160,12 @@ class BGReplaceApp:
     def choose_color(self):
         color = colorchooser.askcolor()[0]
         if color:
-            self.bg_color = tuple(int(c) for c in color)
-            self.color_preview.config(bg=self.rgb_to_hex(self.bg_color))
+            # colorchooser 回傳 RGB，需轉成 BGR 給 OpenCV
+            rgb = tuple(int(c) for c in color)
+            bgr = (rgb[2], rgb[1], rgb[0])  # 轉成 BGR
+            self.bg_color = bgr
+            # 顯示的顏色仍用原本的 RGB
+            self.color_preview.config(bg=self.rgb_to_hex(rgb))
 
     def select_bg_image(self):
         file = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg *.png *.jpeg")])
